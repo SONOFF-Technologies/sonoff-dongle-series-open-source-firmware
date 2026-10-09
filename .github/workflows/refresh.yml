@@ -1,0 +1,37 @@
+name: refresh-firmware-list
+
+on:
+  schedule:
+    - cron: "7 * * * *" # hourly, off the :00 mark
+  workflow_dispatch: {} # manual trigger for debugging
+
+permissions:
+  contents: write # required to push the regenerated firmwares.json
+
+concurrency:
+  group: repo-write # serialize with shrink-history's force push
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Regenerate firmwares.json
+        run: python refresh_firmware_list.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "chore: refresh firmware list"
+            git push
+          else
+            echo "nothing changed, nothing to commit"
+          fi

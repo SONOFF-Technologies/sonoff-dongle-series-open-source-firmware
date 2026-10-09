@@ -1,0 +1,18 @@
+[project]
+name = "sonoff-dongle-series-open-source-firmware"
+version = "0.1.0"
+description = "Third-party open-source firmware support for the SONOFF Dongle Series and SONOFF Dongle Flasher"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=1.11",
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true
+exclude = "^tests/"

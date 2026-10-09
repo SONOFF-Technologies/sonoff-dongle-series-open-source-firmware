@@ -1,0 +1,7 @@
+sonoff-dongle-series-open-source-firmware
+Copyright 2026 sonoff-dongle-series-open-source-firmware contributors
+
+The Apache License, Version 2.0 applies to this repository's original source
+code, tests, configuration, and automation. It does not apply to third-party
+firmware binaries under the firmwares/ directory. Those binaries retain their
+respective upstream copyright and license terms. See firmwares/NOTICE.md.

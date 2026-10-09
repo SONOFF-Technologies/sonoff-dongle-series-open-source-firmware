@@ -1,0 +1,62 @@
+name: shrink-history
+
+# Periodically collapse the repository history into a single commit so the
+# mirrored firmware blobs in old commits don't accumulate indefinitely.
+#
+# Safety rails:
+# - skips entirely while the packed history is under SHRINK_THRESHOLD_KIB
+# - re-checks remote main right before the force push and aborts if it
+#   moved (a lost race only delays the shrink to the next run)
+# - shares the `repo-write` concurrency group with refresh.yml, so a
+#   shrink never runs concurrently with a firmware refresh
+#
+# After a shrink runs, local clones diverge from the rewritten main; run:
+#   git fetch && git reset --hard origin/main
+
+on:
+  schedule:
+    - cron: "23 3 1 * *" # monthly, on the 1st, off the :00 mark
+  workflow_dispatch: {} # manual trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repo-write
+  cancel-in-progress: false
+
+jobs:
+  shrink:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — we are rewriting it
+
+      - name: Squash history if it exceeds the threshold
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          SHRINK_THRESHOLD_KIB=51200 # 50 MiB
+          SIZE_KIB=$(git count-objects -v | awk '/^size-pack:/ {print $2}')
+          echo "packed history: ${SIZE_KIB} KiB (threshold ${SHRINK_THRESHOLD_KIB})"
+          if [ "$SIZE_KIB" -lt "$SHRINK_THRESHOLD_KIB" ]; then
+            echo "history still small, nothing to do"
+            exit 0
+          fi
+
+          BEFORE=$(git rev-parse HEAD)
+          git checkout --orphan shrunk-main
+          git add -A
+          git commit -m "chore: squash history (periodic shrink; previous tip was ${BEFORE})"
+
+          # compare-and-swap: only push if remote main hasn't moved on
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$BEFORE" ]; then
+            echo "remote main moved during shrink, aborting (retry next run)"
+            exit 0
+          fi
+          git push --force origin shrunk-main:main
+          echo "history squashed; repository is small again"
