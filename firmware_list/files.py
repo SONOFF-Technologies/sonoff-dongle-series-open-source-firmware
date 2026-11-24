@@ -2,9 +2,10 @@
 
 The manifest's `url` points at these mirrored files on
 raw.githubusercontent.com (CORS-enabled), so a web frontend can fetch
-the bytes directly for flashing. The directory converges to exactly the
-current manifest: stale files are pruned, missing or
-mismatched files are (re-)downloaded, unchanged files are never touched.
+the bytes directly for flashing. Managed files converge to the current
+manifest: stale files are pruned, missing or mismatched files are
+(re-)downloaded, unchanged files are never touched. Manually maintained
+firmware directories are preserved.
 """
 
 import hashlib
@@ -14,6 +15,7 @@ from pathlib import Path, PureWindowsPath
 from typing import Callable, Sequence
 
 ByteDownloader = Callable[[str], bytes]
+_PRESERVED_DIRECTORIES = {"ESPHome", "TASMOTA"}
 _WINDOWS_RESERVED_NAMES = {
     "CON", "PRN", "AUX", "NUL",
     *(f"COM{number}" for number in range(1, 10)),
@@ -114,11 +116,12 @@ def prune_and_ensure(
     directory: Path,
     download: ByteDownloader,
 ) -> None:
-    """Converge `directory` to exactly the requested mirror files.
+    """Converge managed files to the requested mirror files.
 
     Validates all requested paths before deleting stale files, (re-)downloads any
     record whose file is missing or whose on-disk bytes hash to something
-    other than the requested sha256, and leaves matching files alone.
+    other than the requested sha256, and leaves matching files alone. Manually
+    maintained top-level firmware directories are excluded from pruning.
     Downloads come from the upstream release, not the mirror.
     """
     root = _resolve_mirror_root(directory)
@@ -133,6 +136,8 @@ def prune_and_ensure(
     while pending_directories:
         parent = pending_directories.pop()
         for candidate in parent.iterdir():
+            if parent == root and candidate.name in _PRESERVED_DIRECTORIES:
+                continue
             # A stale link is an entry to unlink, never a target to resolve.
             if _is_link_like(candidate):
                 _unlink_link_like(candidate)

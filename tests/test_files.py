@@ -162,6 +162,27 @@ def test_prune_and_ensure_removes_stale_and_downloads_missing(tmp_path):
     assert downloaded == [missing_url]
 
 
+@pytest.mark.parametrize("directory_name", ["TASMOTA", "ESPHome"])
+def test_prune_and_ensure_preserves_manually_managed_directories(
+    tmp_path, directory_name
+):
+    preserved = tmp_path / directory_name
+    nested = preserved / "nested"
+    nested.mkdir(parents=True)
+    firmware = nested / "manual-firmware.bin"
+    firmware.write_bytes(b"manually maintained")
+    empty_directory = preserved / "empty"
+    empty_directory.mkdir()
+    stale = tmp_path / "stale.gbl"
+    stale.write_bytes(b"obsolete")
+
+    prune_and_ensure([], tmp_path, lambda url: b"unused")
+
+    assert firmware.read_bytes() == b"manually maintained"
+    assert empty_directory.is_dir()
+    assert not stale.exists()
+
+
 def test_prune_and_ensure_replaces_mismatched_file(tmp_path):
     path = tmp_path / RELATIVE_PATH
     path.parent.mkdir()
